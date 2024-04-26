@@ -2,7 +2,7 @@
 import pandas as pd
 
 # create pandas dataframe from data
-df = pd.read_csv("/Users/miagironda/Data_Visualization_Project/original_dataset.csv")
+df = pd.read_csv("/Users/miagironda/Data_Visualization_Project/data-viz-project/original_dataset.csv")
 
 # convert the date column to datetime format
 df["Date"] = pd.to_datetime(df["Date"])
@@ -48,7 +48,7 @@ nan_count_per_column = df_london_cleaned.isna().sum()
 print(nan_count_per_column)
 
 # convert filtered dataframe into a new csv file to use in html file
-output_directory = "/Users/miagironda/Data_Visualization_Project/assets/data/"
+output_directory = "/Users/miagironda/Data_Visualization_Project/data-viz-project/"
 df_london_cleaned.to_csv(output_directory + "filtered_data.csv", index = False)
 
 
