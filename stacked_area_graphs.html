@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>House Prices and Price Percent Changes in London for First-Time-Buyers and Former-Owner-Occupiers</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <style>
+        body {
+            background-color: #f4f4f4;
+            font-family: Verdana, sans-serif;
+        }
+        svg {
+            width: 800px;
+            height: 600px;
+            margin-top: 50px;
+            margin-left: auto;
+            margin-right: auto;
+            display: block;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 100px;
+        }
+        .control-item {
+            margin: 5px 20px;
+            display: inline-block;
+        }
+        label {
+            margin-right: 10px;
+        }
+        .graph-title {
+            font-size: 50px;
+            font-family: Verdana, sans-serif;
+        }
+        .legend-container {
+            position: absolute;
+            top: 250px;
+            left: 100px;
+            width: 200px;
+            background-color: white;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            z-index: 1000; /* Ensure the legend appears on top */
+        }
+        .legend {
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 5px;
+            border: 1px solid #ccc;
+            border-radius: 50%;
+        }
+
+        .legend span {
+            font-size: 14px;
+        }
+        h1 {
+            text-align: center;
+            font-family: Verdana, sans-serif;
+        }
+    </style>
+</head>
+<body>
+<h1>House Prices and Price Percent Changes in London for First-Time-Buyers and Former-Owner-Occupiers</h1>
+<div class="legend-container"></div>
+<div class="controls">
+    <div class="control-item">
+        <label for="startYearSelector">Start Date:</label>
+        <select id="startYearSelector"></select>
+    </div>
+    <div class="control-item">
+        <label for="endYearSelector">End Date:</label>
+        <select id="endYearSelector"></select>
+    </div>
+    <div class="control-item">
+        <label for="boroughSelector">Borough:</label>
+        <select id="boroughSelector"></select>
+    </div>
+    <div class="control-item">
+        <label for="typeSelector">Desired Statistic:</label>
+        <select id="typeSelector">
+            <option value="price">Prices (FTBPrice, FOOPrice)</option>
+            <option value="change">% Change (FTB12mPercentChange, FOO12mPercentChange)</option>
+        </select>
+    </div>
+</div>
+<svg></svg>
+<script>
+    var margin = {top: 70, right: 20, bottom: 60, left: 200},
+        width = 800 - margin.left - margin.right,
+        height = 600 - margin.top - margin.bottom;
+
+    var svg = d3.select("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    d3.csv("https://raw.githubusercontent.com/miagironda/data-viz-project/main/data.csv").then(function(data) {
+        data.forEach(d => {
+            d.FTBPrice = +d.FTBPrice; // Convert to number
+            d.FOOPrice = +d.FOOPrice; // Convert to number
+            d['FTB12m%Change'] = +d['FTB12m%Change']; // Convert to number, matching the CSV column name
+            d['FOO12m%Change'] = +d['FOO12m%Change']; // Convert to number, matching the CSV column name
+        });
+
+        var years = Array.from(new Set(data.map(d => d.Year))).sort();
+        var boroughs = Array.from(new Set(data.map(d => d.RegionName))).sort();
+
+        d3.select("#startYearSelector").selectAll("option")
+            .data(years).enter().append("option")
+            .text(d => d);
+        d3.select("#endYearSelector").selectAll("option")
+            .data(years).enter().append("option")
+            .text(d => d);
+        d3.select("#boroughSelector").selectAll("option")
+            .data(boroughs).enter().append("option")
+            .text(d => d);
+
+// Function to draw legends
+        function drawLegend(keys, color, type) {
+            var legendContainer = d3.select(".legend-container");
+            legendContainer.html("");
+
+            var legend = legendContainer.selectAll(".legend")
+                .data(keys)
+                .enter().append("div")
+                .attr("class", "legend");
+
+            legend.append("div")
+                .attr("class", "legend-color")
+                .style("background-color", (d, i) => color(i));
+
+            legend.append("span")
+                .text(d => {
+                    if (type === "price") {
+                        if (d === "FTBPrice") {
+                            return "FTB Price";
+                        } else if (d === "FOOPrice") {
+                            return "FOO Price";
+                        }
+                    } else if (type === "change") {
+                        if (d === "FTB12m%Change") {
+                            return "FTB % Change";
+                        } else if (d === "FOO12m%Change") {
+                            return "FOO % Change";
+                        }
+                    }
+                    return "";
+                });
+        }
+        function updateGraph(startYear, endYear, selectedBorough, type) {
+            var filteredData = data.filter(d => d.Year >= startYear && d.Year <= endYear && d.RegionName === selectedBorough);
+            var keys = type === "price" ? ["FTBPrice", "FOOPrice"] : ["FTB12m%Change", "FOO12m%Change"];
+            var yLabel = type === "price" ? "Average Price (£)" : "Percent Change (%)";
+            var color = d3.scaleOrdinal()
+                .domain(keys)
+                .range(type === "price" ? ["#1f77b4", "#ff7f0e"] : ["#2ca02c", "#d62728"]);
+            var stack = d3.stack().keys(keys)(filteredData);
+
+            var x = d3.scalePoint()
+                .domain(filteredData.map(d => d.Year))
+                .range([0, width]);
+
+            var y = d3.scaleLinear()
+                .domain([0, d3.max(stack, d => d3.max(d, d => d[1]))])
+                .range([height, 0]);
+
+            var area = d3.area()
+                .x(d => x(d.data.Year))
+                .y0(d => y(d[0]))
+                .y1(d => y(d[1]));
+
+            svg.selectAll("*").remove(); // Clear the SVG to redraw everything, including axis
+
+            svg.selectAll(".layer")
+                .data(stack)
+                .enter().append("path")
+                .attr("class", "layer")
+                .attr("d", area)
+                .attr("fill", (d, i) => color(i));
+
+            // Redraw axes and axis labels
+            svg.append("g")
+                .attr("transform", "translate(0," + height + ")")
+                .call(d3.axisBottom(x));
+
+            // X-axis label (static)
+            svg.append("text")
+                .attr("class", "axis-label")
+                .attr("text-anchor", "middle")
+                .attr("x", width / 2)
+                .attr("y", height + 40)
+                .text("Year");
+
+            // Y-axis label (dynamic)
+            svg.append("text")
+                .attr("class", "axis-label")
+                .attr("text-anchor", "middle")
+                .attr("transform", "rotate(-90)")
+                .attr("y", -70)
+                .attr("x", -height / 2)
+                .text(yLabel);
+
+            // Update the title dynamically
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", 0 - (margin.top / 2))
+                .attr("text-anchor", "middle")
+                .style("font-size", "16px")
+                .attr("class", "graph-title")
+                .text(`${type === "price" ? "Average Prices" : "Percentage Changes"} in ${selectedBorough} from ${startYear} to ${endYear}`);
+
+            drawLegend(keys, color, type);
+
+            svg.append("g")
+                .attr("transform", "translate(0," + height + ")")
+                .call(d3.axisBottom(x));
+
+            svg.append("g")
+                .call(d3.axisLeft(y));
+        }
+
+        // Initial plot
+        updateGraph(years[0], years[years.length - 1], boroughs[0], "price");
+
+        // Event listeners
+        d3.select("#startYearSelector").on("change", function() {
+            updateGraph(this.value, d3.select("#endYearSelector").node().value, d3.select("#boroughSelector").node().value, d3.select("#typeSelector").node().value);
+        });
+        d3.select("#endYearSelector").on("change", function() {
+            updateGraph(d3.select("#startYearSelector").node().value, this.value, d3.select("#boroughSelector").node().value, d3.select("#typeSelector").node().value);
+        });
+        d3.select("#boroughSelector").on("change", function() {
+            updateGraph(d3.select("#startYearSelector").node().value, d3.select("#endYearSelector").node().value, this.value, d3.select("#typeSelector").node().value);
+        });
+        d3.select("#typeSelector").on("change", function() {
+            updateGraph(d3.select("#startYearSelector").node().value, d3.select("#endYearSelector").node().value, d3.select("#boroughSelector").node().value, this.value);
+        });
+    });
+</script>
+</body>
+</html>
